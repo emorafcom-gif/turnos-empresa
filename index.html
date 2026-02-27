@@ -1,121 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Turnos Circular Pro</title>
-
-<style>
-body{
-    margin:0;
-    font-family:Arial, sans-serif;
-    background:linear-gradient(135deg,#0f172a,#1e293b);
-    color:white;
-    text-align:center;
-}
-
-h1{
-    padding:20px;
-    font-size:42px;
-}
-
-.container{
-    display:flex;
-    flex-wrap:wrap;
-    justify-content:center;
-    gap:40px;
-    margin-top:40px;
-}
-
-.card{
-    background:#1e293b;
-    padding:25px;
-    border-radius:20px;
-    width:260px;
-    box-shadow:0 0 25px rgba(0,0,0,0.5);
-}
-
-.nombre{
-    font-size:22px;
-    margin-bottom:15px;
-}
-
-.circle{
-    position:relative;
-    width:200px;
-    height:200px;
-    margin:auto;
-}
-
-svg{
-    transform:rotate(-90deg);
-}
-
-circle{
-    fill:none;
-    stroke-width:15;
-    stroke-linecap:round;
-}
-
-.bg{
-    stroke:#334155;
-}
-
-.progress{
-    stroke:#22c55e;
-    transition:stroke-dashoffset 1s linear;
-}
-
-.time{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    font-size:28px;
-    font-weight:bold;
-}
-
-.admin{
-    margin-top:40px;
-}
-
-input,button{
-    padding:10px;
-    border-radius:8px;
-    border:none;
-    margin:5px;
-    font-size:16px;
-}
-</style>
-</head>
-<body>
-
-<h1>CONTROL CIRCULAR DE COLACIONES</h1>
-
-<div class="container" id="contenedor"></div>
-
-<div class="admin">
-    <input type="text" id="nombre" placeholder="Nombre">
-    <input type="time" id="hora">
-    <button onclick="agregar()">Agregar</button>
-</div>
-
 <script>
 
 let personas = JSON.parse(localStorage.getItem("turnosCircular")) || [];
+let editandoIndex = null;
 
 function guardar(){
     localStorage.setItem("turnosCircular", JSON.stringify(personas));
-}
-
-function agregar(){
-    let nombre=document.getElementById("nombre").value;
-    let hora=document.getElementById("hora").value;
-
-    if(nombre && hora){
-        personas.push({nombre,hora});
-        guardar();
-        render();
-    }
 }
 
 function minutos(hora){
@@ -130,6 +19,41 @@ function horaFin(hora){
     return h.toString().padStart(2,"0")+":"+m.toString().padStart(2,"0");
 }
 
+function agregar(){
+    let nombre=document.getElementById("nombre").value;
+    let hora=document.getElementById("hora").value;
+
+    if(!nombre || !hora) return;
+
+    if(editandoIndex !== null){
+        personas[editandoIndex] = {nombre,hora};
+        editandoIndex = null;
+    } else {
+        personas.push({nombre,hora});
+    }
+
+    document.getElementById("nombre").value="";
+    document.getElementById("hora").value="";
+
+    guardar();
+    render();
+}
+
+function editar(index){
+    let persona = personas[index];
+    document.getElementById("nombre").value = persona.nombre;
+    document.getElementById("hora").value = persona.hora;
+    editandoIndex = index;
+}
+
+function eliminar(index){
+    if(confirm("¿Eliminar esta colación?")){
+        personas.splice(index,1);
+        guardar();
+        render();
+    }
+}
+
 function render(){
     const contenedor=document.getElementById("contenedor");
     contenedor.innerHTML="";
@@ -137,19 +61,25 @@ function render(){
     let ahora=new Date();
     let actualMin=ahora.getHours()*60+ahora.getMinutes();
 
-    personas.forEach((p,index)=>{
+    personas
+    .sort((a,b)=>minutos(a.hora)-minutos(b.hora))
+    .forEach((p,index)=>{
 
         let inicio=minutos(p.hora);
         let fin=inicio+60;
 
         let restante=fin-actualMin;
         let porcentaje=Math.max(0,Math.min(60,restante));
-
         let progreso=(porcentaje/60);
 
         let radio=90;
         let circunferencia=2*Math.PI*radio;
         let offset=circunferencia*(1-progreso);
+
+        let estadoTexto =
+            actualMin < inicio ? "Pendiente" :
+            actualMin >= inicio && actualMin < fin ? restante+" min" :
+            "Finalizado";
 
         let card=document.createElement("div");
         card.className="card";
@@ -157,18 +87,21 @@ function render(){
         card.innerHTML=`
             <div class="nombre">${p.nombre}</div>
             <div>${p.hora} - ${horaFin(p.hora)}</div>
+
             <div class="circle">
                 <svg width="200" height="200">
-                    <circle class="bg" cx="100" cy="100" r="${radio}" stroke-width="15"></circle>
+                    <circle class="bg" cx="100" cy="100" r="${radio}"></circle>
                     <circle class="progress" cx="100" cy="100" r="${radio}"
                         stroke-dasharray="${circunferencia}"
                         stroke-dashoffset="${offset}">
                     </circle>
                 </svg>
-                <div class="time">
-                    ${restante>0 && actualMin>=inicio ? restante+" min" :
-                      actualMin<inicio ? "Pendiente" : "Finalizado"}
-                </div>
+                <div class="time">${estadoTexto}</div>
+            </div>
+
+            <div style="margin-top:15px;">
+                <button onclick="editar(${index})" style="background:#3b82f6;color:white;">Editar</button>
+                <button onclick="eliminar(${index})" style="background:#ef4444;color:white;">Eliminar</button>
             </div>
         `;
 
@@ -181,10 +114,6 @@ function render(){
 }
 
 setInterval(render,1000);
-
 render();
 
 </script>
-
-</body>
-</html>
