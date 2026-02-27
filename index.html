@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Control Turnos Empresa</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#0f172a;
+    color:white;
+    text-align:center;
+}
+
+h1{
+    margin-top:20px;
+    font-size:32px;
+}
+
+.container{
+    width:90%;
+    margin:auto;
+}
+
+.persona{
+    display:flex;
+    justify-content:space-between;
+    padding:15px;
+    margin:8px 0;
+    border-radius:8px;
+    background:#1e293b;
+    font-size:20px;
+}
+
+.activa{
+    background:#16a34a;
+    font-weight:bold;
+}
+
+button{
+    padding:6px 12px;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+.admin-panel{
+    display:none;
+    margin-top:20px;
+    background:#1e293b;
+    padding:15px;
+    border-radius:8px;
+}
+
+input{
+    padding:6px;
+    border-radius:5px;
+    border:none;
+    margin:5px;
+}
+
+.estado{
+    margin-top:25px;
+    font-size:24px;
+}
+
+.historial{
+    margin-top:20px;
+    background:#1e293b;
+    padding:10px;
+    border-radius:8px;
+    max-height:150px;
+    overflow:auto;
+    font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>CONTROL DE TURNOS DE ALMUERZO</h1>
+
+<div class="container">
+
+<div id="lista"></div>
+
+<div class="estado">
+    <div id="actual"></div>
+    <div id="contador"></div>
+</div>
+
+<button onclick="loginAdmin()">🔐 Administrador</button>
+
+<div class="admin-panel" id="adminPanel">
+    <h3>Panel Administrador</h3>
+
+    <input type="text" id="nuevoNombre" placeholder="Nombre">
+    <input type="time" id="nuevaHora">
+    <button onclick="agregarPersona()">Agregar</button>
+
+    <br><br>
+
+    <input type="password" id="nuevaClave" placeholder="Nueva clave admin">
+    <button onclick="cambiarClave()">Cambiar Clave</button>
+
+</div>
+
+<div class="historial">
+    <h3>Historial Diario</h3>
+    <div id="historial"></div>
+</div>
+
+</div>
+
+<audio id="alarma">
+<source src="https://www.soundjay.com/buttons/sounds/beep-07.mp3">
+</audio>
+
+<script>
+
+let CLAVE = localStorage.getItem("claveAdmin") || "1234";
+let personas = JSON.parse(localStorage.getItem("turnos")) || [];
+let historial = JSON.parse(localStorage.getItem("historial")) || [];
+let fechaGuardada = localStorage.getItem("fechaHistorial");
+
+function guardar(){
+    localStorage.setItem("turnos", JSON.stringify(personas));
+}
+
+function guardarHistorial(){
+    localStorage.setItem("historial", JSON.stringify(historial));
+}
+
+function verificarCambioDia(){
+    let hoy = new Date().toLocaleDateString();
+    if(fechaGuardada !== hoy){
+        historial = [];
+        guardarHistorial();
+        localStorage.setItem("fechaHistorial", hoy);
+    }
+}
+
+function ordenar(){
+    personas.sort((a,b)=>a.hora.localeCompare(b.hora));
+}
+
+function render(){
+    ordenar();
+    const lista=document.getElementById("lista");
+    lista.innerHTML="";
+    personas.forEach((p,index)=>{
+        lista.innerHTML+=`
+        <div class="persona" id="p${index}">
+            <div>${p.nombre}</div>
+            <div>${p.hora}</div>
+            <button onclick="eliminar(${index})">❌</button>
+        </div>`;
+    });
+    mostrarHistorial();
+}
+
+function agregarPersona(){
+    let nombre=document.getElementById("nuevoNombre").value;
+    let hora=document.getElementById("nuevaHora").value;
+    if(nombre && hora){
+        personas.push({nombre,hora});
+        guardar();
+        render();
+    }
+}
+
+function eliminar(index){
+    personas.splice(index,1);
+    guardar();
+    render();
+}
+
+function loginAdmin(){
+    let pass=prompt("Ingrese clave:");
+    if(pass===CLAVE){
+        document.getElementById("adminPanel").style.display="block";
+    }else{
+        alert("Clave incorrecta");
+    }
+}
+
+function cambiarClave(){
+    let nueva=document.getElementById("nuevaClave").value;
+    if(nueva){
+        CLAVE=nueva;
+        localStorage.setItem("claveAdmin",nueva);
+        alert("Clave actualizada");
+    }
+}
+
+function actualizar(){
+    verificarCambioDia();
+
+    let ahora=new Date();
+    let minutosActual=ahora.getHours()*60+ahora.getMinutes();
+
+    let activaIndex=-1;
+
+    personas.forEach((p,index)=>{
+        let [h,m]=p.hora.split(":");
+        let inicio=parseInt(h)*60+parseInt(m);
+        let fin=inicio+60;
+
+        if(minutosActual>=inicio && minutosActual<fin){
+            activaIndex=index;
+        }
+    });
+
+    document.querySelectorAll(".persona").forEach(p=>p.classList.remove("activa"));
+
+    if(activaIndex>=0){
+        let persona=personas[activaIndex];
+        document.getElementById("p"+activaIndex).classList.add("activa");
+
+        document.getElementById("actual").innerText="En colación: "+persona.nombre;
+
+        let [h,m]=persona.hora.split(":");
+        let fin=parseInt(h)*60+parseInt(m)+60;
+        let diff=fin-minutosActual;
+
+        document.getElementById("contador").innerText=
+        "Termina en: "+Math.floor(diff/60)+"h "+(diff%60)+"m";
+
+        if(!persona.notificado){
+            document.getElementById("alarma").play();
+            historial.push(persona.nombre+" inició turno a las "+persona.hora);
+            guardarHistorial();
+            persona.notificado=true;
+        }
+    }else{
+        document.getElementById("actual").innerText="Sin turno activo";
+        document.getElementById("contador").innerText="";
+    }
+}
+
+function mostrarHistorial(){
+    let div=document.getElementById("historial");
+    div.innerHTML="";
+    historial.slice(-10).reverse().forEach(h=>{
+        div.innerHTML+=h+"<br>";
+    });
+}
+
+setInterval(actualizar,60000);
+
+render();
+actualizar();
+
+</script>
+
+</body>
+</html>
