@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Turnos Visual Pro</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:linear-gradient(135deg,#0f172a,#1e293b);
+    color:white;
+    overflow:hidden;
+}
+
+h1{
+    text-align:center;
+    padding:20px;
+    font-size:40px;
+}
+
+.container{
+    width:95%;
+    margin:auto;
+}
+
+.timeline{
+    position:relative;
+    margin-top:50px;
+    height:500px;
+    border-top:4px solid #94a3b8;
+}
+
+.hour-mark{
+    position:absolute;
+    top:-30px;
+    font-size:18px;
+    color:#cbd5e1;
+}
+
+.person-row{
+    position:relative;
+    height:70px;
+    margin:20px 0;
+}
+
+.block{
+    position:absolute;
+    height:60px;
+    border-radius:15px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:bold;
+    font-size:18px;
+    transition:all 0.4s ease;
+}
+
+.active{
+    animation:pulse 1s infinite;
+}
+
+@keyframes pulse{
+    0%{transform:scale(1);}
+    50%{transform:scale(1.05);}
+    100%{transform:scale(1);}
+}
+
+.conflict{
+    background:#dc2626 !important;
+}
+
+.current-line{
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:4px;
+    background:#facc15;
+    z-index:1000;
+}
+
+.admin{
+    text-align:center;
+    margin-top:20px;
+}
+
+input,button{
+    padding:10px;
+    border-radius:8px;
+    border:none;
+    margin:5px;
+    font-size:16px;
+}
+</style>
+</head>
+<body>
+
+<h1>CONTROL VISUAL DE COLACIONES</h1>
+
+<div class="container">
+
+<div id="timeline" class="timeline"></div>
+
+<div class="admin">
+    <input type="text" id="nombre" placeholder="Nombre">
+    <input type="time" id="hora">
+    <button onclick="agregar()">Agregar</button>
+</div>
+
+</div>
+
+<script>
+
+let personas = JSON.parse(localStorage.getItem("turnosVisualPro")) || [];
+
+function guardar(){
+    localStorage.setItem("turnosVisualPro", JSON.stringify(personas));
+}
+
+function ordenar(){
+    personas.sort((a,b)=>a.hora.localeCompare(b.hora));
+}
+
+function agregar(){
+    let nombre=document.getElementById("nombre").value;
+    let hora=document.getElementById("hora").value;
+
+    if(nombre && hora){
+        personas.push({nombre,hora});
+        guardar();
+        render();
+    }
+}
+
+function minutos(hora){
+    let [h,m]=hora.split(":");
+    return parseInt(h)*60+parseInt(m);
+}
+
+function horaFin(hora){
+    let total=minutos(hora)+60;
+    let h=Math.floor(total/60);
+    let m=total%60;
+    return h.toString().padStart(2,"0")+":"+m.toString().padStart(2,"0");
+}
+
+function calcularRango(){
+    if(personas.length===0) return {min:720,max:1080};
+
+    let min=Math.min(...personas.map(p=>minutos(p.hora)));
+    let max=Math.max(...personas.map(p=>minutos(p.hora)+60));
+
+    return {min:min-30,max:max+30};
+}
+
+function detectarConflicto(inicio,fin,index){
+    for(let i=0;i<personas.length;i++){
+        if(i===index) continue;
+        let otroInicio=minutos(personas[i].hora);
+        let otroFin=otroInicio+60;
+
+        if(inicio<otroFin && fin>otroInicio){
+            return true;
+        }
+    }
+    return false;
+}
+
+function render(){
+    ordenar();
+    const timeline=document.getElementById("timeline");
+    timeline.innerHTML="";
+
+    let rango=calcularRango();
+    let totalMin=rango.max-rango.min;
+    let pxPorMin=window.innerWidth/totalMin;
+
+    // MARCAS HORARIAS
+    for(let m=rango.min; m<=rango.max; m+=60){
+        let mark=document.createElement("div");
+        mark.className="hour-mark";
+        mark.style.left=(m-rango.min)*pxPorMin+"px";
+
+        let h=Math.floor(m/60);
+        mark.innerText=h+":00";
+
+        timeline.appendChild(mark);
+    }
+
+    // LINEA ACTUAL
+    let ahora=new Date();
+    let actualMin=ahora.getHours()*60+ahora.getMinutes();
+
+    let line=document.createElement("div");
+    line.className="current-line";
+    line.style.left=(actualMin-rango.min)*pxPorMin+"px";
+    timeline.appendChild(line);
+
+    personas.forEach((p,index)=>{
+        let row=document.createElement("div");
+        row.className="person-row";
+
+        let inicio=minutos(p.hora);
+        let fin=inicio+60;
+
+        let block=document.createElement("div");
+        block.className="block";
+
+        let left=(inicio-rango.min)*pxPorMin;
+        let width=60*pxPorMin;
+
+        block.style.left=left+"px";
+        block.style.width=width+"px";
+
+        block.style.background=color(index);
+
+        block.innerText=p.nombre+"  "+p.hora+" - "+horaFin(p.hora);
+
+        if(actualMin>=inicio && actualMin<fin){
+            block.classList.add("active");
+        }
+
+        if(detectarConflicto(inicio,fin,index)){
+            block.classList.add("conflict");
+        }
+
+        row.appendChild(block);
+        timeline.appendChild(row);
+    });
+}
+
+function color(i){
+    const colores=[
+        "#3b82f6","#22c55e","#f97316",
+        "#eab308","#8b5cf6","#ec4899",
+        "#06b6d4","#14b8a6"
+    ];
+    return colores[i%colores.length];
+}
+
+setInterval(render,60000);
+
+render();
+
+</script>
+
+</body>
+</html>
+
+
