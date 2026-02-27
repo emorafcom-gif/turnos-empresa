@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Turnos Visual Pro</title>
+<title>Turnos Circular Pro</title>
 
 <style>
 body{
@@ -10,93 +10,72 @@ body{
     font-family:Arial, sans-serif;
     background:linear-gradient(135deg,#0f172a,#1e293b);
     color:white;
-    overflow-x:hidden;
+    text-align:center;
 }
 
 h1{
-    text-align:center;
     padding:20px;
-    font-size:40px;
+    font-size:42px;
 }
 
 .container{
-    width:95%;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:40px;
+    margin-top:40px;
+}
+
+.card{
+    background:#1e293b;
+    padding:25px;
+    border-radius:20px;
+    width:260px;
+    box-shadow:0 0 25px rgba(0,0,0,0.5);
+}
+
+.nombre{
+    font-size:22px;
+    margin-bottom:15px;
+}
+
+.circle{
+    position:relative;
+    width:200px;
+    height:200px;
     margin:auto;
 }
 
-.timeline{
-    position:relative;
-    margin-top:50px;
-    min-height:400px;
-    border-top:4px solid #94a3b8;
+svg{
+    transform:rotate(-90deg);
 }
 
-.hour-mark{
+circle{
+    fill:none;
+    stroke-width:15;
+    stroke-linecap:round;
+}
+
+.bg{
+    stroke:#334155;
+}
+
+.progress{
+    stroke:#22c55e;
+    transition:stroke-dashoffset 1s linear;
+}
+
+.time{
     position:absolute;
-    top:-30px;
-    font-size:18px;
-    color:#cbd5e1;
-}
-
-.person-row{
-    position:relative;
-    height:80px;
-    margin:20px 0;
-}
-
-.block{
-    position:absolute;
-    height:60px;
-    border-radius:15px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:bold;
-    font-size:18px;
-    transition:all 0.4s ease;
-    padding-right:40px;
-}
-
-.delete-btn{
-    position:absolute;
-    right:10px;
     top:50%;
-    transform:translateY(-50%);
-    background:#111;
-    color:white;
-    border:none;
-    border-radius:50%;
-    width:28px;
-    height:28px;
-    cursor:pointer;
-}
-
-.active{
-    animation:pulse 1s infinite;
-}
-
-@keyframes pulse{
-    0%{transform:scale(1);}
-    50%{transform:scale(1.05);}
-    100%{transform:scale(1);}
-}
-
-.conflict{
-    background:#dc2626 !important;
-}
-
-.current-line{
-    position:absolute;
-    top:0;
-    bottom:0;
-    width:4px;
-    background:#facc15;
-    z-index:1000;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-size:28px;
+    font-weight:bold;
 }
 
 .admin{
-    text-align:center;
-    margin-top:30px;
+    margin-top:40px;
 }
 
 input,button{
@@ -110,33 +89,22 @@ input,button{
 </head>
 <body>
 
-<h1>CONTROL VISUAL DE COLACIONES</h1>
+<h1>CONTROL CIRCULAR DE COLACIONES</h1>
 
-<div class="container">
-
-<div id="timeline" class="timeline"></div>
+<div class="container" id="contenedor"></div>
 
 <div class="admin">
     <input type="text" id="nombre" placeholder="Nombre">
     <input type="time" id="hora">
     <button onclick="agregar()">Agregar</button>
-    <button onclick="limpiarTodo()" style="background:#dc2626;color:white;">
-        Limpiar Todo
-    </button>
-</div>
-
 </div>
 
 <script>
 
-let personas = JSON.parse(localStorage.getItem("turnosVisualPro")) || [];
+let personas = JSON.parse(localStorage.getItem("turnosCircular")) || [];
 
 function guardar(){
-    localStorage.setItem("turnosVisualPro", JSON.stringify(personas));
-}
-
-function ordenar(){
-    personas.sort((a,b)=>a.hora.localeCompare(b.hora));
+    localStorage.setItem("turnosCircular", JSON.stringify(personas));
 }
 
 function agregar(){
@@ -145,22 +113,6 @@ function agregar(){
 
     if(nombre && hora){
         personas.push({nombre,hora});
-        guardar();
-        render();
-    }
-}
-
-function eliminar(index){
-    if(confirm("¿Eliminar este turno?")){
-        personas.splice(index,1);
-        guardar();
-        render();
-    }
-}
-
-function limpiarTodo(){
-    if(confirm("¿Seguro que quieres borrar TODOS los turnos?")){
-        personas=[];
         guardar();
         render();
     }
@@ -178,102 +130,61 @@ function horaFin(hora){
     return h.toString().padStart(2,"0")+":"+m.toString().padStart(2,"0");
 }
 
-function calcularRango(){
-    if(personas.length===0) return {min:720,max:1080};
-
-    let min=Math.min(...personas.map(p=>minutos(p.hora)));
-    let max=Math.max(...personas.map(p=>minutos(p.hora)+60));
-
-    return {min:min-30,max:max+30};
-}
-
-function detectarConflicto(inicio,fin,index){
-    for(let i=0;i<personas.length;i++){
-        if(i===index) continue;
-        let otroInicio=minutos(personas[i].hora);
-        let otroFin=otroInicio+60;
-
-        if(inicio<otroFin && fin>otroInicio){
-            return true;
-        }
-    }
-    return false;
-}
-
 function render(){
-    ordenar();
-    const timeline=document.getElementById("timeline");
-    timeline.innerHTML="";
-
-    let rango=calcularRango();
-    let totalMin=rango.max-rango.min;
-    let pxPorMin=window.innerWidth/totalMin;
-
-    for(let m=rango.min; m<=rango.max; m+=60){
-        let mark=document.createElement("div");
-        mark.className="hour-mark";
-        mark.style.left=(m-rango.min)*pxPorMin+"px";
-        let h=Math.floor(m/60);
-        mark.innerText=h+":00";
-        timeline.appendChild(mark);
-    }
+    const contenedor=document.getElementById("contenedor");
+    contenedor.innerHTML="";
 
     let ahora=new Date();
     let actualMin=ahora.getHours()*60+ahora.getMinutes();
 
-    let line=document.createElement("div");
-    line.className="current-line";
-    line.style.left=(actualMin-rango.min)*pxPorMin+"px";
-    timeline.appendChild(line);
-
     personas.forEach((p,index)=>{
-        let row=document.createElement("div");
-        row.className="person-row";
 
         let inicio=minutos(p.hora);
         let fin=inicio+60;
 
-        let block=document.createElement("div");
-        block.className="block";
+        let restante=fin-actualMin;
+        let porcentaje=Math.max(0,Math.min(60,restante));
 
-        let left=(inicio-rango.min)*pxPorMin;
-        let width=60*pxPorMin;
+        let progreso=(porcentaje/60);
 
-        block.style.left=left+"px";
-        block.style.width=width+"px";
-        block.style.background=color(index);
+        let radio=90;
+        let circunferencia=2*Math.PI*radio;
+        let offset=circunferencia*(1-progreso);
 
-        block.innerHTML=`
-            ${p.nombre} ${p.hora} - ${horaFin(p.hora)}
-            <button class="delete-btn" onclick="eliminar(${index})">×</button>
+        let card=document.createElement("div");
+        card.className="card";
+
+        card.innerHTML=`
+            <div class="nombre">${p.nombre}</div>
+            <div>${p.hora} - ${horaFin(p.hora)}</div>
+            <div class="circle">
+                <svg width="200" height="200">
+                    <circle class="bg" cx="100" cy="100" r="${radio}" stroke-width="15"></circle>
+                    <circle class="progress" cx="100" cy="100" r="${radio}"
+                        stroke-dasharray="${circunferencia}"
+                        stroke-dashoffset="${offset}">
+                    </circle>
+                </svg>
+                <div class="time">
+                    ${restante>0 && actualMin>=inicio ? restante+" min" :
+                      actualMin<inicio ? "Pendiente" : "Finalizado"}
+                </div>
+            </div>
         `;
 
         if(actualMin>=inicio && actualMin<fin){
-            block.classList.add("active");
+            card.style.boxShadow="0 0 30px #22c55e";
         }
 
-        if(detectarConflicto(inicio,fin,index)){
-            block.classList.add("conflict");
-        }
-
-        row.appendChild(block);
-        timeline.appendChild(row);
+        contenedor.appendChild(card);
     });
 }
 
-function color(i){
-    const colores=[
-        "#3b82f6","#22c55e","#f97316",
-        "#eab308","#8b5cf6","#ec4899",
-        "#06b6d4","#14b8a6"
-    ];
-    return colores[i%colores.length];
-}
-
-setInterval(render,60000);
+setInterval(render,1000);
 
 render();
 
 </script>
+
 </body>
 </html>
